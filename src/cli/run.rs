@@ -10,7 +10,7 @@ use glob::{PatternError, glob};
 
 use crate::dsl::{Query, validate_query};
 use crate::engine::{EngineError, Match, execute_file, execute_record};
-use crate::output::{OutputFormat, format_match};
+use crate::output::{OutputFormat, format_match, format_query_plan};
 use crate::parser::parse_line;
 use crate::translator::translate_heuristic;
 
@@ -24,8 +24,13 @@ pub enum CliError {
     MissingNaturalLanguageQuery,
     #[error("failed to read DSL file {path}: {source}")]
     ReadDsl { path: String, source: io::Error },
-    #[error("failed to parse DSL JSON: {0}")]
-    ParseDsl(#[from] serde_json::Error),
+    #[error("failed to parse DSL JSON: {source}\nhint: {hint}")]
+    ParseDsl {
+        source: serde_json::Error,
+        hint: &'static str,
+    },
+    #[error("failed to format JSON output: {0}")]
+    FormatRecord(serde_json::Error),
     #[error("invalid DSL query: {0}")]
     InvalidDsl(#[from] crate::dsl::ValidationError),
     #[error("invalid glob pattern {pattern}: {source}")]
@@ -110,7 +115,22 @@ fn load_query(dsl: &str) -> Result<Query, CliError> {
         dsl.to_string()
     };
 
-    Ok(Query::from_json(&json)?)
+    Query::from_json(&json).map_err(|source| CliError::ParseDsl {
+        source,
+        hint: dsl_parse_hint(dsl),
+    })
+}
+
+fn dsl_parse_hint(dsl: &str) -> &'static str {
+    let trimmed = dsl.trim_start();
+
+    if Path::new(dsl).extension().is_some() && !Path::new(dsl).exists() {
+        "the --dsl value looks like a file path, but the file does not exist"
+    } else if !trimmed.starts_with('{') {
+        "pass a JSON object string or a path to a DSL JSON file"
+    } else {
+        "check that the JSON uses the LogLens DSL shape: {\"version\":1,\"filters\":{...}}"
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -179,7 +199,7 @@ fn execute_inputs(
         };
 
         remaining = remaining.saturating_sub(matches.len());
-        write_matches(&mut stdout, output_format, &matches)?;
+        write_matches(&mut stdout, output_format, query, &matches)?;
     }
 
     Ok(())
@@ -216,7 +236,7 @@ fn follow_inputs(
             let matches = read_appended_matches(file, query)?;
             if !matches.is_empty() {
                 saw_new_data = true;
-                write_matches(&mut stdout, output_format, &matches)?;
+                write_matches(&mut stdout, output_format, query, &matches)?;
                 stdout.flush()?;
             }
         }
@@ -281,18 +301,19 @@ fn execute_stdin(stdin: impl BufRead, query: &Query) -> Result<Vec<Match>, CliEr
 fn write_matches(
     mut writer: impl Write,
     output_format: OutputFormat,
+    query: &Query,
     matches: &[Match],
-) -> Result<(), io::Error> {
+) -> Result<(), CliError> {
     for matched in matches {
-        writeln!(writer, "{}", format_match(matched, output_format)?)?;
+        let line = format_match(matched, query, output_format).map_err(CliError::FormatRecord)?;
+        writeln!(writer, "{line}")?;
     }
 
     Ok(())
 }
 
 fn write_explain(mut writer: impl Write, query: &Query) -> Result<(), CliError> {
-    let query_json = serde_json::to_string_pretty(query)?;
-    writeln!(writer, "{query_json}")?;
+    writeln!(writer, "{}", format_query_plan(query))?;
     Ok(())
 }
 

@@ -310,3 +310,34 @@ Deliverables:
 - summary of follow behavior
 
 ----
+
+Read AGENTS.md and docs/PRODUCT.md first.
+
+Task:
+Improve CLI user experience for LogLens.
+
+Requirements:
+- enhance text output formatting:
+  - optionally include level and message when available
+  - highlight matched substrings in text mode
+- improve --explain output:
+  - print a human-readable query plan instead of raw JSON
+- improve error messages:
+  - make DSL parsing errors clearer
+  - include hints when possible
+- keep JSON output unchanged
+
+Constraints:
+- do not change core engine logic
+- do not change DSL schema
+- keep output module responsible for formatting
+- keep CLI thin
+
+Deliverables:
+- improved output formatting
+- highlight implementation
+- enhanced explain output
+- improved error messages
+- examples of before/after CLI output
+
+----

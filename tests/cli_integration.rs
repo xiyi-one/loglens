@@ -44,7 +44,10 @@ fn cli_filters_single_file_with_text_output() {
         .expect("command should run");
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "ERROR failed\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "\u{1b}[1;33mERROR\u{1b}[0m failed\n"
+    );
 }
 
 #[test]
@@ -68,7 +71,10 @@ fn cli_filters_multiple_files_and_applies_limit() {
         .expect("command should run");
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "ERROR first\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "\u{1b}[1;33mERROR\u{1b}[0m first\n"
+    );
 }
 
 #[test]
@@ -88,7 +94,10 @@ fn cli_filters_glob_inputs() {
         .expect("command should run");
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "ERROR failed\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "\u{1b}[1;33mERROR\u{1b}[0m failed\n"
+    );
 }
 
 #[test]
@@ -140,7 +149,10 @@ fn cli_reads_stdin_with_dash_input() {
     let output = child.wait_with_output().expect("command should finish");
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "ERROR failed\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "\u{1b}[1;33mERROR\u{1b}[0m failed\n"
+    );
 }
 
 #[test]
@@ -161,7 +173,7 @@ fn cli_filters_with_natural_language_query() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "ERROR login failed for user=alice\n"
+        "ERROR \u{1b}[1;33mlogin failed\u{1b}[0m for user=alice\n"
     );
 }
 
@@ -181,12 +193,31 @@ fn cli_explain_prints_validated_heuristic_dsl_to_stderr() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "ERROR login failed\n"
+        "ERROR \u{1b}[1;33mlogin failed\u{1b}[0m\n"
     );
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(r#""version": 1"#));
-    assert!(stderr.contains(r#""value": "login failed""#));
+    assert!(stderr.contains("Query plan"));
+    assert!(stderr.contains(r#"field=raw op=contains value="login failed""#));
+}
+
+#[test]
+fn cli_reports_clear_dsl_parse_error() {
+    let dir = temp_dir("bad-dsl");
+    let log = dir.join("app.log");
+    write_file(&log, "INFO ready\n");
+
+    let output = Command::new(bin())
+        .arg("--dsl")
+        .arg("not-json")
+        .arg(&log)
+        .output()
+        .expect("command should run");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("failed to parse DSL JSON"));
+    assert!(stderr.contains("hint: pass a JSON object string or a path to a DSL JSON file"));
 }
 
 #[test]
@@ -237,5 +268,5 @@ fn cli_follow_reads_appended_matching_lines() {
     child.kill().expect("child should be killed");
     let _ = child.wait();
 
-    assert_eq!(line, "ERROR appended line\n");
+    assert_eq!(line, "\u{1b}[1;33mERROR\u{1b}[0m appended line\n");
 }
