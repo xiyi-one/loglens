@@ -1,0 +1,3 @@
+{"level":"ERROR","message":"login failed","request_id":"json-1"}
+level=ERROR msg=payment_failed request_id=kv-1
+INFO plain text line

@@ -1,0 +1,5 @@
+INFO service started
+ERROR payment failed for request_id=abc
+WARN cache timeout for request_id=def
+ERROR ignore healthcheck failure
+ERROR checkout failed for request_id=ghi
